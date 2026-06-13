@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Light theme (default) ─────────────────────────────────────── */
+:root {
+  --color-bg:               #f0f2f8;
+  --color-surface:          #ffffff;
+  --color-surface-raised:   #f4f6fb;
+  --color-surface-high:     #e8ecf4;
+  --color-surface-highest:  #dde3ef;
+
+  --color-on-surface:       #1a1f2f;
+  --color-on-surface-2:     #43485e;
+  --color-on-surface-3:     #686e87;
+
+  --color-outline:          #c5c8da;
+  --color-outline-dim:      #e5e7f2;
+
+  --color-primary:          #1d4ed8;
+  --color-primary-cta:      #2563eb;
+  --color-primary-cta-20:   rgba(37, 99, 235, 0.20);
+  --color-on-primary-cta:   #ffffff;
+
+  --color-accent:           #059669;
+  --color-on-accent:        #ffffff;
+
+  --color-error:            #c62828;
+  --color-warn:             #b45309;
+
+  --shadow-card:            0 1px 3px rgba(26,31,47,0.06), 0 1px 2px rgba(26,31,47,0.04);
+}
+
+/* ── Dark theme ────────────────────────────────────────────────── */
+.dark {
+  --color-bg:               #0c1120;
+  --color-surface:          #131929;
+  --color-surface-raised:   #1a1f2f;
+  --color-surface-high:     #222844;
+  --color-surface-highest:  #2f3445;
+
+  --color-on-surface:       #dee1f7;
+  --color-on-surface-2:     #c2c6d6;
+  --color-on-surface-3:     #8c909f;
+
+  --color-outline:          #424754;
+  --color-outline-dim:      #2e333f;
+
+  --color-primary:          #adc6ff;
+  --color-primary-cta:      #3b82f6;
+  --color-primary-cta-20:   rgba(59, 130, 246, 0.20);
+  --color-on-primary-cta:   #ffffff;
+
+  --color-accent:           #4edea3;
+  --color-on-accent:        #003824;
+
+  --color-error:            #ffb4ab;
+  --color-warn:             #fbbf24;
+
+  --shadow-card:            none;
+}
+
+@layer base {
+  body {
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
+    background-color: var(--color-bg);
+    color: var(--color-on-surface);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar        { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: var(--color-outline); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-on-surface-3); }
+}
+
+@layer utilities {
+  .ring-cta {
+    --tw-ring-color: var(--color-primary-cta-20);
+  }
+}
