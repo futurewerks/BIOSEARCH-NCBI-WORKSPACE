@@ -11,7 +11,7 @@ import DateRangeSlider from '../components/DateRangeSlider';
 import SearchHistory from '../components/SearchHistory';
 
 interface Props {
-  onResults: (result: EsearchResult, db: string, query: string) => void;
+  onResults: (result: EsearchResult, db: string, query: string, chips: SearchChip[], dateFrom: number, dateTo: number, dbInfo: DatabaseInfo) => void;
 }
 
 export default function SearchPage({ onResults }: Props) {
@@ -48,7 +48,7 @@ export default function SearchPage({ onResults }: Props) {
       };
       await dbSaveHistory(entry).catch(() => {/* non-critical */});
       dbLoadHistory().then(setHistory).catch(() => {});
-      onResults(result, selectedDb.ncbiDb, query);
+      onResults(result, selectedDb.ncbiDb, query, chips, dateFrom, dateTo, selectedDb);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Search failed. Please try again.');
     } finally {

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Dna, Loader2 } from 'lucide-react';
-import type { EsearchResult } from './types/search';
+import type { EsearchResult, SearchChip, DatabaseInfo } from './types/search';
 import type { FilterState } from './components/Results/FilterPanel';
 import { runEsearch } from './utils/ncbi';
+import { DATABASES, MIN_YEAR, MAX_YEAR } from './constants';
 import { useTheme } from './hooks/useTheme';
 import { useAuth } from './hooks/useAuth';
 import AppShell, { type AppView } from './components/AppShell';
@@ -14,9 +15,13 @@ import CollectionsPage from './pages/CollectionsPage';
 import DocsPage from './pages/DocsPage';
 
 interface ResultState {
-  result: EsearchResult;
-  db:     string;
-  query:  string;
+  result:   EsearchResult;
+  db:       string;
+  query:    string;
+  chips:    SearchChip[];
+  dateFrom: number;
+  dateTo:   number;
+  dbInfo:   DatabaseInfo;
 }
 
 const DEFAULT_FILTERS: FilterState = { pubTypes: [], species: [], sort: 'relevance' };
@@ -25,10 +30,10 @@ export default function App() {
   const { dark, toggle } = useTheme();
   const auth = useAuth();
 
-  const [view,       setView]       = useState<AppView>('search');
+  const [view,        setView]        = useState<AppView>('search');
   const [resultState, setResultState] = useState<ResultState | null>(null);
-  const [filters,    setFilters]    = useState<FilterState>(DEFAULT_FILTERS);
-  const [searchKey,  setSearchKey]  = useState(0);
+  const [filters,     setFilters]     = useState<FilterState>(DEFAULT_FILTERS);
+  const [searchKey,   setSearchKey]   = useState(0);
 
   // ── Auth loading splash ───────────────────────────────────────────
   if (auth.loading) {
@@ -48,18 +53,32 @@ export default function App() {
   }
 
   // ── Authenticated app ─────────────────────────────────────────────
-  function handleResults(result: EsearchResult, db: string, query: string) {
-    setResultState({ result, db, query });
+  function handleResults(
+    result: EsearchResult,
+    db: string,
+    query: string,
+    chips: SearchChip[],
+    dateFrom: number,
+    dateTo: number,
+    dbInfo: DatabaseInfo,
+  ) {
+    setResultState({ result, db, query, chips, dateFrom, dateTo, dbInfo });
     setFilters(DEFAULT_FILTERS);
     setSearchKey((k) => k + 1);
     setView('results');
   }
 
-  async function handleReSearch(newQuery: string) {
+  async function handleReSearch(
+    newQuery: string,
+    chips: SearchChip[],
+    dateFrom: number,
+    dateTo: number,
+    dbInfo: DatabaseInfo,
+  ) {
     if (!resultState) return;
     try {
-      const result = await runEsearch(resultState.db, newQuery);
-      setResultState({ ...resultState, result, query: newQuery });
+      const result = await runEsearch(dbInfo.ncbiDb, newQuery);
+      setResultState({ result, db: dbInfo.ncbiDb, query: newQuery, chips, dateFrom, dateTo, dbInfo });
       setFilters(DEFAULT_FILTERS);
       setSearchKey((k) => k + 1);
     } catch {
@@ -81,7 +100,8 @@ export default function App() {
         onReRunSearch={async (query, db) => {
           try {
             const result = await runEsearch(db, query);
-            setResultState({ result, db, query });
+            const dbInfo = DATABASES.find((d) => d.ncbiDb === db) ?? DATABASES[0];
+            setResultState({ result, db, query, chips: [], dateFrom: MIN_YEAR, dateTo: MAX_YEAR, dbInfo });
             setFilters(DEFAULT_FILTERS);
             setSearchKey((k) => k + 1);
             setView('results');
@@ -96,6 +116,10 @@ export default function App() {
           result={resultState.result}
           db={resultState.db}
           query={resultState.query}
+          chips={resultState.chips}
+          dateFrom={resultState.dateFrom}
+          dateTo={resultState.dateTo}
+          dbInfo={resultState.dbInfo}
           filters={filters}
           onReSearch={handleReSearch}
           onNewQuery={handleNewQuery}

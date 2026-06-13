@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, AlertCircle, ChevronDown, ExternalLink, X } from 'lucide-react';
-import type { EsearchResult, EsummaryDoc, ElinkResult, EsummaryResult } from '../types/search';
+import type { EsearchResult, EsummaryDoc, ElinkResult, EsummaryResult, SearchChip, DatabaseInfo } from '../types/search';
 import type { FilterState } from '../components/Results/FilterPanel';
 import {
   fetchEsummary, fetchEspell, fetchElink, runEsearchSorted,
@@ -10,13 +10,18 @@ import { dbLoadSavedArticles, dbSaveArticle, dbRemoveSavedArticle } from '../uti
 import ResultCard from '../components/Results/ResultCard';
 import SpellingSuggestion from '../components/Results/SpellingSuggestion';
 import RightPanel from '../components/Results/RightPanel';
+import SearchBar from '../components/Results/SearchBar';
 
 interface Props {
-  result: EsearchResult;
-  db: string;
-  query: string;
-  filters: FilterState;
-  onReSearch: (newQuery: string) => void;
+  result:    EsearchResult;
+  db:        string;
+  query:     string;
+  chips:     SearchChip[];
+  dateFrom:  number;
+  dateTo:    number;
+  dbInfo:    DatabaseInfo;
+  filters:   FilterState;
+  onReSearch: (query: string, chips: SearchChip[], dateFrom: number, dateTo: number, dbInfo: DatabaseInfo) => Promise<void>;
   onNewQuery: () => void;
 }
 
@@ -30,35 +35,38 @@ function parseDocs(summaryData: EsummaryResult, uids: string[] | undefined): Esu
   return uids.map((uid) => summaryData.result[uid] as EsummaryDoc).filter(Boolean);
 }
 
-export default function ResultsPage({ result, db, query, filters, onReSearch, onNewQuery: _ }: Props) {
+export default function ResultsPage({
+  result, db, query, chips, dateFrom, dateTo, dbInfo,
+  filters, onReSearch, onNewQuery: _,
+}: Props) {
   const { count, webenv, querykey } = result.esearchresult;
   const label = DB_LABELS[db] ?? db;
 
-  const [docs, setDocs] = useState<EsummaryDoc[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [retstart, setRetstart] = useState(0);
+  const [docs,         setDocs]         = useState<EsummaryDoc[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [loadingMore,  setLoadingMore]  = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [fetchError,   setFetchError]   = useState<string | null>(null);
+  const [retstart,     setRetstart]     = useState(0);
   const [currentTotal, setCurrentTotal] = useState(parseInt(count, 10));
-  const [session, setSession] = useState({ webenv, querykey });
+  const [session,      setSession]      = useState({ webenv, querykey });
 
   const [spellCorrection, setSpellCorrection] = useState<string | null>(null);
-  const [spellDismissed, setSpellDismissed] = useState(false);
+  const [spellDismissed,  setSpellDismissed]  = useState(false);
 
-  const [selectedUid, setSelectedUid] = useState<string | null>(null);
-  const [linkData, setLinkData] = useState<ElinkResult | null>(null);
-  const [linkLoading, setLinkLoading] = useState(false);
+  const [selectedUid,  setSelectedUid]  = useState<string | null>(null);
+  const [linkData,     setLinkData]     = useState<ElinkResult | null>(null);
+  const [linkLoading,  setLinkLoading]  = useState(false);
 
-  const [abstractCache, setAbstractCache] = useState<Record<string, string>>({});
+  const [abstractCache,    setAbstractCache]    = useState<Record<string, string>>({});
   const [loadingAbstracts, setLoadingAbstracts] = useState<Set<string>>(new Set());
 
-  const [relatedCache, setRelatedCache] = useState<Record<string, EsummaryDoc[]>>({});
+  const [relatedCache,   setRelatedCache]   = useState<Record<string, EsummaryDoc[]>>({});
   const [loadingRelated, setLoadingRelated] = useState<Set<string>>(new Set());
 
   const [savedUids, setSavedUids] = useState<Set<string>>(new Set());
 
-  const [yearData, setYearData] = useState<{ year: string; count: number }[]>([]);
+  const [yearData,    setYearData]    = useState<{ year: string; count: number }[]>([]);
   const [yearLoading, setYearLoading] = useState(true);
 
   const initialized = useRef(false);
@@ -125,10 +133,10 @@ export default function ResultsPage({ result, db, query, filters, onReSearch, on
   useEffect(() => {
     if (!initialized.current) return;
 
-    const ptSuffix = filters.pubTypes.map((pt) => `"${pt}"[pt]`).join(' OR ');
+    const ptSuffix  = filters.pubTypes.map((pt) => `"${pt}"[pt]`).join(' OR ');
     const orgSuffix = filters.species.map((sp) => `${sp}[Organism]`).join(' OR ');
     let filterQuery = query;
-    if (ptSuffix) filterQuery += ` AND (${ptSuffix})`;
+    if (ptSuffix)  filterQuery += ` AND (${ptSuffix})`;
     if (orgSuffix) filterQuery += ` AND (${orgSuffix})`;
 
     setLoading(true);
@@ -232,6 +240,11 @@ export default function ResultsPage({ result, db, query, filters, onReSearch, on
     }
   }
 
+  // ── Spelling suggestion re-search ─────────────────────────────────
+  async function handleSpellAccept(newQuery: string) {
+    await onReSearch(newQuery, chips, dateFrom, dateTo, dbInfo);
+  }
+
   // ── Save / unsave ─────────────────────────────────────────────────
   async function handleSaveArticle(uid: string) {
     const doc = docs.find((d) => d.uid === uid);
@@ -256,17 +269,28 @@ export default function ResultsPage({ result, db, query, filters, onReSearch, on
   return (
     <div className="flex h-full">
       {/* ── Results feed ── */}
-      <div className="flex-1 min-w-0 px-6 py-6 space-y-4">
+      <div className="flex-1 min-w-0 px-6 py-5 space-y-4">
+
+        {/* ── Search bar ── */}
+        <div className="relative z-20">
+          <SearchBar
+            chips={chips}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            dbInfo={dbInfo}
+            onSearch={onReSearch}
+          />
+        </div>
+
+        {/* ── Result count + NCBI link ── */}
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-baseline gap-2">
-            <span className="text-sm text-on-surface-3">
-              <span className="font-semibold text-on-surface">{docs.length}</span>
-              {' / '}
-              <span className="font-semibold text-on-surface">{currentTotal.toLocaleString()}</span>
-              {' results in '}
-              <span className="text-on-surface font-semibold">{label}</span>
-            </span>
-          </div>
+          <span className="text-sm text-on-surface-3">
+            <span className="font-semibold text-on-surface">{docs.length}</span>
+            {' / '}
+            <span className="font-semibold text-on-surface">{currentTotal.toLocaleString()}</span>
+            {' results in '}
+            <span className="text-on-surface font-semibold">{label}</span>
+          </span>
           <a
             href={`https://www.ncbi.nlm.nih.gov/${db}?WebEnv=${session.webenv}&query_key=${session.querykey}`}
             target="_blank"
@@ -286,7 +310,7 @@ export default function ResultsPage({ result, db, query, filters, onReSearch, on
         {spellCorrection && !spellDismissed && (
           <SpellingSuggestion
             corrected={spellCorrection}
-            onAccept={onReSearch}
+            onAccept={handleSpellAccept}
             onDismiss={() => setSpellDismissed(true)}
           />
         )}
@@ -299,7 +323,7 @@ export default function ResultsPage({ result, db, query, filters, onReSearch, on
         )}
 
         {fetchError && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-warning/10 border border-warning/30 text-warning text-sm">
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-lg bg-caution/10 border border-caution/30 text-caution text-sm">
             <AlertCircle size={14} className="shrink-0" />
             <span className="flex-1">{fetchError}</span>
             <button
